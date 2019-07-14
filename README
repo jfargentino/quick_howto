@@ -1,0 +1,1029 @@
+*******************************************************************************
+*** Impression et édition *****************************************************
+*******************************************************************************
+
+Regarder le contenue du spooleur d'impression:
+"lpq -a" ou "lpstat"
+
+Tuer une impression:
+"lprm JOB" ou "cancel JOB"
+
+convertir un fichier de iso-8859-1 en utf8
+iconv -f iso-8859-1 -t utf8 FICHIER.IN --output FICHIER.OUT
+
+Convertir un pdf en une image par page:
+convert -density 150 FICHIER.pdf FICHIER.format
+150 (ppi) semble un bon compromis pour intégrer les images dans un document
+
+pour enlever les "^M" de windows à la fin des lignes:
+dans vi :1,$s/[CTRL+V][CTRL+M]//
+ou dos2unix
+
+partager vim en deux: ^w(indow) s(plit)
+sélectionner le split d'en bas: ^w j
+sélectionner le split d'en haut: ^w k
+sélectionner l'autre split: ^w w
+ajouter une ligne:^w +
+enlever une ligne:^w -
+
+Voir les différences entre 2 fichiers PDF: les convertir en fichier txt avec
+pdftotext puis diff. Ou bien utiliser "diffpdf".
+
+Fusionner plusieurs pdf en un seul:
+ghostscript -q -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sPAPERSIZE=a4 \
+            -sOutputFile=SORTIE.pdf doc1.pdf doc2.pdf ... docN.pdf
+
+Extraire des pages d'un pdf:
+gs -sDEVICE=pdfwrite -dNOPAUSE -dBATCH -dSAFER \
+       -dFirstPage=22 -dLastPage=36 \
+       -sOutputFile=OUTPUT.pdf INPUT.pdf
+
+*******************************************************************************
+
+*******************************************************************************
+*** Système *******************************************************************
+*******************************************************************************
+
+Changer les limites systèmes (de taille de la pile, de temps CPU...):
+ulimit -a
+
+Format du crontab ("crontab -e" pour l'editer):
+MN HH DD MM WD pour Minutes (0-59), heures (0-23), n° jour du mois (1-31),
+mois (1-12), jour de la semaine (0-6, 0 = dimanche).
+Pour les tâches périodiques, utiliser "*", ou "*/n" pour tout(e)s les n
+pour les tâches à répétition séparer les dates par ",",
+pour les tâches continues sépararer les bornes par "-".
+
+Pour démarrer une application graphique avec cron, il faut ajouter:
+"export DISPLAY=:0.0 &&" devant la commande à lancer
+
+Pour récupérer des fichiers effacés sur ext2 ou ext3:
+"debugfs" et "undel"
+
+Ne plus mettre à jour la date de dernier accès d'un fichier, répertoire:
+"chattr +A $FICHIER" ou "chattr -R +A $REPERTOIRE"
+Ou "noatime" en option du "mount"
+
+Synchroniser deux répertoires:
+rsync -aPv [-e ssh] user1@host1:/chemin/source user2@host2:/chemin/destination
+rsync --partial --rsh=ssh [--progress] source user@host:/chemin/destination
+
+Installation du depot de firmware DELL:
+# Installer les clefs:
+wget -q -O - http://linux.dell.com/repo/community/bootstrap.cgi | bash
+# Installer le depot:
+wget -q -O - http://linux.dell.com/repo/firmware/bootstrap.cgi | bash
+# Installer les outils
+yum -y install firmware-addon-dell
+# Telecharger la mise a jour
+yum -y install $(bootstrap_firmware)
+# Flasher au prochain demarrage
+update_firmware
+
+Pour rediriger la sortie d'erreur sur la sortie standard:
+2>&1
+
+Pour rediriger la sortie d'erreur et la sortie standard:
+&>
+
+Pour permettre à jf.argentino d'éteindre la machine, root doit éditer le fichier
+sudoers:
+sudoedit /etc/sudoers
+pour ajouter la ligne suivante:
+jf.argentino ALL=(ALL) NOPASSWD: /sbin/shutdown
+
+Pour connaître le programme qui utilise un fichier:
+lsof ou fuser
+
+Securite:
+"rkhunter --propupd" quand le systeme est clean
+puis periodiquement:
+"rkunter"
+"chkrootkit"
+"unhide"
+"freshclam && clamscan -r /"
+"lynis -c"
+
+A cause d'un bug dans le moniteur gnome de cpufreq, seulement le 1er coeur
+change de fréquence, donc pour le deuxième coeur, faire à la main:
+echo performance > /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor
+
+Nettoyer le cash the Macromedia FLASH
+rm -rf ~/.macromedia/Flash_Player/#SharedObjects
+rm -rf ~/.macromedia/Flash_Player/macromedia.com/support/flashplayer/sys
+
+RAID logiciel:
+Créer un ensemble:
+créer les partitions sur /dev/sdb et /dev/sdc
+"fdisk /dev/sdX"; "n"; "p"; "w"
+mdadm --create /dev/md0 --level=raid1 --raid-devices=2 /dev/sdb1 /dev/sdc1
+une fois synchronisé (cat /proc/mdstat), créer le système de fichier:
+mkfs.ext3 /dev/md0
+Créer le fichier de configuration:
+mdadm --detail --scan >> /etc/mdadm.conf
+Le fichier de config doit être recréer à chaque modification de l'ensemble.
+Ré-assembler un ensemble de disques:
+mdadm --assemble /dev/md0 /dev/sdb1 /dev/sdc1
+Ajouter un disque:
+mdadm --add /dev/md0 /dev/sdc1
+Ajouter un disque bis:
+mdadm --manage /dev/md0 --add /dev/sdc1
+le disque doit avoir le drapeau 'raid' (Linux raid autodetect) lors de la
+création de l'ensemble.
+En revanche, lorsque que l'on change un disque d'un ensemble existant, le
+nouveau disque (ne doit pas?) peut ne pas être partitionné.
+Pour utiliser des disques plus gros (peut être fait en ligne, monté):
+mdadm --grow /dev/mdX --size max (attendre la fin de la reconstruction)
+resize2fs /dev/mdX
+ATTENTION il faut que l'ordre des disques dans l'ensemble RAID soit dans l'ordre
+des partitions !!!
+Pour stopper un ensemble RAID
+mdadm --manage /dev/md0 --fail /dev/sdX
+mdadm --manage /dev/md0 --remove /dev/sdX etc
+mdadm --manage /dev/md0 --stop /dev/md0
+Pour effacer le superblock et eviter que le disque soit à chaque fois réassigné
+mdadm --zero-superblock /dev/sdX
+Enfin la surveillance grâce à:
+mdadm --monitor --mail=jf.argentino@osean.fr --delay=1800 /dev/md2
+
+Mettre à zéro l'espace libre d'une partition:
+dd if=/dev/zero of=fichier_sur_partition bs=4k
+rm -f fichier_sur_partition
+
+Faire une image disque-dur compressée (bien mettre à zéro l'espace libre avant) 
+dd if=/dev/sdX | gzip > FICHIER_IMG_GZ
+Pour restaurer:
+gzip -dc FICHIER_IMG_GZ | dd of=/dev/sdX
+
+Idem mais en séparant le résultat en fichier de 700mo
+dd if=/dev/sdX | gzip -c | split -b 700m - FICHIER_IMG_GZ.
+Et la restauration:
+cat FICHIER_IMG_GZ.* | gzip -dc | dd of=/dev/sdX
+
+pour monter une partition au milieu d'une image:
+afficher le décalage de la partition avec parted:
+"parted FICHIER_IMAGE"
+puis "unit", répondre "B" pour octets
+puis "print" et noter le démarage de la partition
+monter la partition avec
+"mount -o loop,ro,offset=OFFSET FICHIER_IMAGE DOSSIER"
+
+Sauvegarde du MBR:
+dd if=/dev/sda of=boot.mbr bs=512 count=1
+Sauvegarde du MBR sans la table de partition:
+dd if=/dev/sda of=boot.mbr bs=446 count=1
+
+Pour accelerer dd, utiliser un gros "bs" et l'option de conversion "notrunc"
+dd bs=256M conv=notrunc
+
+Pour surveiller la progretion d'un dd:
+kill -SIGUSR1 $DD_PID
+
+Passer à la version supérieure de FEDORA:
+lancer "preupgrade", puis redémarrer
+nettoyage puis mise-à-jour: "yum clean all; yum upgrade"
+chercher les problèmes: "package-cleanup --problems"
+chercher les doublons: "package-cleanup --cleandupes"
+chercher les paquets orphelins: "package-cleanup --orphans"
+chercher les configurations modifiées: find / -print | egrep "rpm(new|save)$"
+vérifier la mise-à-jour: "yum repolist"
+synchroniser les paquets: "yum distro-sync"
+réf:
+http://fedoraproject.org/wiki/PreUpgrade
+http://doc.fedora-fr.org/wiki/PreUpgrade_:_Passer_%C3%A0_la_version_sup%C3%A9rieure_de_Fedora
+
+Le centre de contrôle de SUSE (graphique):
+/usr/lib/YaST2/bin/y2controlcenter-gnome -S
+
+Le patch magique remplacé par trois ligne de bash:
+lancer le service "cgconfig"
+ajouter "mkdir -m 0777 /cgroup/cpu/user" dans /etc/rc.local
+ajouter :
+if [ "$PS1" ] ; then
+   mkdir -m 0700 /cgroup/cpu/user/$$
+   echo $$ > /cgroup/cpu/user/$$/tasks
+fi
+dans /etc/bashrc ou ~/.bashrc
+mais pas mal de gens pense qu'il vaut mieux utiliser "nice"
+pointeurs:
+http://www.webupd8.org/2010/11/alternative-to-200-lines-kernel-patch.html
+https://lkml.org/lkml/2010/11/16/413
+http://linux.slashdot.org/comments.pl?sid=1874692
+http://forums.fedoraforum.org/showthread.php?p=1418113
+http://fedoraproject.org/wiki/Features/ControlGroups
+
+pour voir ou le demarage prend du temps: bootchart
+bootchart mesure jusqu'a ce qu'il detecte un des processus listes dans la
+variable "exit_proc", soit par defaut "gdmgreeter gdm-binary kdm_greet kdm",
+il faut donc ajouter le gestionnaire de connection utilise reelement (slim,
+xdm...) ou meme une application lancee au démarrage
+ajouter ces options au noyau:
+initcall_debug printk.time=y init=/sbin/bootchartd
+puis:
+pybootchartgui -i
+
+ref: https://wiki.debian.org/SSDOptimization
+Disque dur SSD sous linux:
+    -noyau >= 2.6.37 (2.6.33 dans certain pointeur)
+    -systeme de fichier ext4 (ou btrf)
+*Ajouter les options "discard" et "noatime" (ou "relatime") en 1ere option
+ de montage du fichier fstab. Il peut arriver que le TRIM (option "discard")
+ degrade les performance, si c'est le cas il faut le lancer a la main de
+ temps a autre (wiper.sh).
+*Mettre les fichier temporaires en ramdisk:
+ "none /tmp tmpfs defaults,nosuid,nodev,noexec 0 0"
+*Enlever la journalisation ? Enlever barriere d'ecriture ?
+*Changer la politique de scheduling? ajouter "elevator=noop" ou
+ "elevator=deadline" comme argument du noyau. Si "deadline" faire
+ "echo 1 > /sys/block/sdX/queue/iosched/fifo_batch" (?). "deadline" donne
+ la priorite a la lecture sur l'ecriture, "noop" est une simple FIFO (pertinant
+ pour les petites config uniquement?)
+*ATTENTION: il faut que le debut des partitions soient alignes sur les blocs
+ soit pour des blocs physiques de 128ko, avec des secteurs de 512o, le debut de
+ chaque partition doit etre un multiple de 128ko/512o = 256.
+*ATTENTION: par defaut chaque piste ("track") contient 63 secteurs de 512o,
+ soit 32256o par piste, qui n'est pas un multiple de 4096, si on utilise
+ 56 secteurs par piste, alors c'est OK (56*512 = 7*4096).
+*ATTENTION: il faut aligner la partition avec les blocs logiques, et que
+ le "stride" respecte l'alignement des blocs physiques soit pour des blocs
+ logiques de 4ko et des blocs physiques de 128ko: 
+ "mkfs.ext4 -b 4096 -E stride=32 /dev/sdXY"
+*Evidement, pas de "swap" et pas d'hibernation du coup...
+*Fichier temporaire de mozilla en ramdisk:
+ Copier le dossier ~/.mozilla en ~/.mozilla_ref par exemple
+ ajouter au fstab
+ none /home/XXX/.mozilla tmpfs defaults,uid=YYY,gid=ZZZ,mode=750 0 0
+ avec YYY id utilisateur et ZZZ id de son groupe
+ puis dans le rc.local
+ rsync -a --delete /home/XXX/.mozilla_ref/ /home/XXX/.mozilla/
+ enfin dans le rc.shutdown
+ rsync -a --delete /home/XXX/.mozilla/ /home/XXX/.mozilla_ref/
+ Verifier la taille maximum du cache offline pour ne pas saturer la RAM
+ "about:config" dans la barre d'adresse, puis filtrer avec "browser.cache"
+*bcache permet d'utiliser le SSD en cache de donnée pour une disque-dur plus
+ lent
+
+Utiliser un scheduler par peripherique de bloc:
+"echo SCHEDPOL > /sys/block/sdX/queue/scheduler" ou SCHEDPOL peut etre
+noop, deadline cfq. C'est utile si on a un sdd pour le systeme et un dd normal
+pour les donnees par exemple.
+
+Tester le FirmwareUpdateKit
+
+Programmer le reveil du PC dans 5 min grace a la RTC:
+echo $((`date +%s` + 5*60)) > /sys/class/rtc/rtc0/wakealarm
+Verfifier la prise en compte en affichant ce meme fichier ou bien
+dans "/proc/driver/rtc"
+
+Compiler le module foobar.c
+créer un Makefile contenant "obj-m += foobar.o"
+puis "make -C /lib/modules/`uname -r`/build M=`pwd`"
+puis "make -C /lib/modules/`uname -r`/build M=`pwd` modules_install"
+
+lister les fichiers d'un paquetage:
+repoquery --list $PACK
+(repoquery appartient au paquetage yum-utils)
+
+Fork - Bomb
+:(){ :|: & };:
+
+TODO sauvegarde distante avec rsync:
+configurer le client à sauvegarder pour que root puisse se connecter avec une
+clef RSA (sans mot de passe) au serveur
+rsync -e ssh -avz --delete-after /home/user/ \
+      user@serveur.fr:/home/user/sauv_home 1> /dev/null/
+regarder l'option "-exclude-from" de rsync
+
+pour autoriser le montage d'une partition lorsque sa date de dernier démontage
+semble être dans le futur, ajouter l'option "broken_system_clock" dans le
+fichier "/etc/e2fsck.conf" (non vérifié)
+
+Récupérer un mot de passe XP, vista ou 7:
+ophcrack
+
+fermer toutes les sessions de l'utilisateur jfa
+pkill -KILL -u jfa
+
+Quelques optimisations serveurs (hiccups / jitters)
+    - inhiber "Transparent Huge Pages" (THP off)
+    - vm.min_free_kbytes > 1GB (8GB sur les gros systèmes)
+    - interdire le swap (swappinness = 0)
+    - zone_reclaim_mode à 0
+    - autoriser l'Hyper-Threading (peut ralentir les threads)
+pour contrôler numactl, taskset, irqbalance ou isolcpus pour assigner des
+tâches à un coeur. En général il est plus efficace d'assigner un coeur à une
+tâche TOUT EN S'ASSURANT QUE RIEN D'AUTRE NE TOURNE SUR LE COEUR CHOISI.
+
+Analyse de performance LINUX
+vmstat 1
+mpstat -P ALL 1
+pidstat 1
+iostat -xz 1
+free -m
+sar -n DEV 1
+sar -n TCP,ETCP 1
+
+Monter des partitions LVM:
+"vgscan [-v]" pour scanner les partitions LVM
+"vgchange [-v] -a y [LVM_NAME]" pour creer les pseudo-fichiers de peripheriques
+/dev/LVM_NAME/partitionX
+
+Sauvetage disque-dur avec (g)ddrescue, en 2 temps:
+1°) Recuperer tout ce qui est lisible, contourner les zones mortes
+ddrescue -n /dev/sdX OUTPUT_FILE MAP_FILE
+2°) Repasser 8 fois sur les zones mortes, acces direct au dd
+ddrescue -r8 -d /dev/sdX OUTPUT_FILE MAP_FILE
+
+Une fois que des partitions ont été modifiés, vérifier que le noyau a bien mis
+à jour (lsblk, message d'avertissement...), sinon forcer la relecture de la
+table des partitions:
+"partprobe [DEV]" ou
+"hdparm -z [DEV]" ou
+"blockdev --rereadpt [DEV]" ou
+"echo 1 > /sys/block/DEV/device/rescan"
+CA NE FONCTIONNE PAS TOUJOURS !
+
+*******************************************************************************
+
+*******************************************************************************
+*** NTP / PTP *****************************************************************
+*******************************************************************************
+
+Serveur NTP à base de GPS (sans LinuxPPS):
+1°)lancer gpsd:
+/usr/sbin/gpsd -D5 -n -N /dev/ttyXXX
+-D est le niveau de verbosité
+-n pour ne pas attendre de connexion cliente
+-N pour ne pas mettre en tâche de fond
+2°)Créer un fichier de configuration ntp avec les lignes suivantes:
+# GPS Date and time
+server 127.127.28.0 minpoll 4 maxpoll 4
+fudge 127.127.28.0 time1 0.420 refid GPS
+# GPS PPS
+server 127.127.28.1 minpoll 4 maxpoll 4 prefer
+fudge 127.127.28.1 refid GPS1
+3°)lancer le serveur ntp:
+ntpd -c CONFIG -d -n
+4°) Vérifier la prise en compte:
+ntpq -p
+
+Serveur NTP à base de GPS avec LinuxPPS:
+Patcher le noyau si < 2.6.34
+Compiler avec CONFIG_PPS, CONFIG_PPS_CLIENT_KTIMER et CONFIG_PPS_CLIENT_LDISC
+Minimiser les latences de réception:
+setserial /dev/ttySx low_latency
+Attacher la discipline de ligne:
+ldattach PPS /dev/ttySx
+Vérifier avec
+ppstest /dev/ppsX
+Créer les liens symboliques:
+ln -s /dev/ttySx /dev/gpsY
+ln -s /dev/ppsX /dev/gpsppsY
+Pour la suite voir ntp.scripts/starter
+
+Empêcher NTP de régler l'heure système, ajouter dans ntp.conf
+disable ntp
+
+Echo du PPS reçu sur DCD sur la sortie RTS (après datation):
+ppsctl -ea ou ppsctl -ex
+
+En cas de réseau surchargé sporadiquement utiliser le filtre "huff'n'puff" en
+ajoutant à ntp.conf:
+tinker huffpuff
+
+il y a d'autre tinker qui peuvent être intéressant:
+tinker allan
+tinker dispersion
+tinker freq
+...
+
+chronyd peut estimer la dérive de la RTC pendant que le PC est éteinds,
+pour cela il faut inhiber le "hwclock" fait à l'extinction, et s'assurer que
+chronyd démarre après le "hwclock" fait à la mise en marche.
+
+pour empêcher chrony d'interroger les serveurs
+chronyc -a offline
+
+http://linuxptp.sourceforge.net/
+
+requete NTP en 1 ligne de BASH:
+TS=$((16#`printf "\xb%-47.s"|nc -uw1 ntp.metas.ch 123|xxd -s40 -l4 -p`-2208988800))
+date --date "@$TS"
+ref http://seriot.ch/ntp.php
+
+*******************************************************************************
+
+*******************************************************************************
+*** Serveur X *****************************************************************
+*******************************************************************************
+
+Autoriser Ctrl + Alt + Backspace pour tuer X sur les nouvelles versions:
+Dans le fichier /etc/X11/xorg.conf, ajouter dans la section "ServerFlags":
+Option "DontZap" "False"
+Et dans les "Propriétés du clavier", "Options de l'agencement", autoriser la
+"Séquence de touche pour fermer le serveur X"
+
+Autoriser la rotation de l'affichage avec les pilotes nVidia, ajouter
+Option      "RandRRotation" "True"
+dans la section "Device", puis dans "nvidia-xconfig", apparait un nouveau
+sous menu nomme "Rotation Settings"
+
+Connexion automatique session Gnome: ajouter à /etc/gdm/custom.conf:
+[daemon]
+AutomaticLoginEnable=true
+AutomaticLogin=jf.argentino
+
+Connexion automatique lightdm, dans /etc/lightdm/lightdm.conf
+[SeatDefaults]
+autologin-user=jfa
+autologin-user-timeout=0
+#autologin-session=UNIMPLEMENTED
+
+RAZ des configurations GNOME, dans le repertoire personel
+rm -rf .gnome .gnome2 .gconf .gconfd .metacity
+
+Installer un FEDORA minimal depuis un LiveCD:
+Booter le LiveCD en mode texte en ajoutant "3" à la fin de la ligne d'options de
+demarrage. Une fois demarrer, se logger en "root" (pas de mot de passe), puis
+lancer la commande:
+/usr/sbin/anaconda --liveinst --method=livecd:///dev/mapper/live-osimg-min
+
+Pour la connexion automatique en mode graphique, UBUNTU 10.04:
+1) dans le fichier "/etc/init/tty1.conf", remplacer
+   "exec /sbin/getty -8 38400 tty1" par
+   "exec /sbin/mingetty --autologin sysloc tty1"
+5) dans le .bashrc de l'utilisateur, ajouter:
+    if [ $(tty) == "/dev/tty1" ]; then
+        startx
+        sudo shutdown -h now
+    fi
+   Pour l'extinction a la fin de la session graphique, il faut que l'utilisateur
+   fasse parti des sudoers sans mot de passe de "shutdown"
+
+Pour la connexion automatique en mode graphique, FEDORA 15 + LXDE
+(?) inittab (?) .bash_profile /etc/lxdm/lxdm.conf
+
+Demarrer LXDE:
+dans /etc/sysconfig/desktop, ajouter
+DISPLAYMANAGER=/usr/bin/lxdm
+DISPLAYMANAGER=/usr/bin/slim-dynwm
+PREFERRED=/usr/bin/startlxde
+
+Demarrage automatique d'applications:
+    - sous icewm: ~/.icewm/autostart
+    - sous lxde: ~/.config/lxsession/LXDE/autostart
+Pour tout le monde:
+    - sous lxde: /etc/xdg/lxsession/LXDE/autostart
+
+Configuration du serveur X
+1) generer un fichier de configuration X
+"sudo Xorg -configure"
+2) generer la "mode line":
+gtf 1024 768 65
+3) Ajouter la "mode line" generee au xorg.conf dans la section "Monitor":
+Section "Monitor"
+    Identifier   "Monitor0"
+    VendorName   "FORENEX"
+    ModelName    "FBD-4665LV"
+    HorizSync    40.0-68.6
+    VertRefresh  50-85
+    Modeline     "1024x768"  94.39  1024 1088 1200 1376  768 769 772 807  -HSync +Vsync
+    Option       "PreferredMode" "1024x768"
+EndSection
+4) Ajouter
+    SubSection     "Display"
+        Depth      24
+        Modes      "1024x768"
+    EndSubSection
+   dans la section "Screen" du xorg.conf
+
+Calibrer la dalle tactile
+pour avoir les decalages x et y: evtest
+voir le dev dans /var/log/Xorg.0.log
+puis les enregistrer dans /etc/X11/xorg.conf.d/01-touchscreen.conf
+Section "InputClass"
+	Identifier		"evdev touchscreen catchall"
+	MatchIsTouchscreen	"on"
+	MatchDevicePath 	"/dev/input/event*"
+	Driver			"evdev"
+	# X left 330 rigth 3970; Y high 320 low 3700.
+	Option			"Calibration" "330 3970 320 3700"
+    Option          "InvertX"   "0"
+    Option          "InvertY"   "0"
+EndSection
+Attention, c'est la syntaxe pour le nouveau pilote unifie (?) evdev,
+pour "elographics", "mutouch", "penmount" et "evtouch":
+SwapAxes -> SwapXY
+"Calibration" "330 3970 320 3700" -> MinX 330 MaxX 3970 ...
+Pour automatiser ?
+xinput_calibrator --output-type xinput | grep 'xinput set-int-prop'
+
+inhiber l'economiseur d'ecran
+xset -display :0.0 -dpms
+(xset s off, xset s noblank, vbetool dpms ???)
+pour le retablir
+xset -display :0.0 +dpms
+
+Si le bureau xfce est en rideau:
+xfwm4 --replace
+
+le placement des icones sur le bureau dans XFCE4
+$HOME/.config/xfce4/desktop/icons.screen0-3344x1009.rc
+
+Manipuler la souris avec le shell xdotool
+
+Gérer le focus d'une fenêtre sous shell wmctrl
+
+*******************************************************************************
+
+*******************************************************************************
+*** Réseau ********************************************************************
+*******************************************************************************
+
+Envoyer un e-mail:
+echo "CORPS DU MESSAGE" | mail -s "SUJET" adresse
+echo "CORPS DU MESSAGE" | mailx -S smtp=smtp.free.fr \
+       -S from=jf.argentino@free.fr -s "SUJET" jf.argentino@osean.fr
+mailx se suffit à lui même, mais il faut utiliser ssmtp pour que les mails à
+destination de root soient redirigés vers un smtp externe (il est plus léger
+que sendmail), ssmtp permet d'utiliser une authentification TLS,
+exemple de "/etc/ssmtp/ssmtp.conf" pour utiliser TLS sur compte OVH:
+root=jf.argentino@osean.fr
+AuthUser=jf.argentino@osean.fr
+AuthPass=motdepasse
+UsesTLS=YES
+UsesSTARTTLS=YES
+mailhub=ssl0.ovh.net:465
+Puis pour envoyer le message contenu dans msg.txt:
+cat msg.txt | mailx -s SUJET adresse@email.dest
+ou
+mailx -s SUJET adresse@email.dest < msg.txt
+
+ajouter la passerelle par defaut
+route add default gw IP_ADDR IF
+
+Tester la performance reseau en MULTICAST
+côté serveur "iperf -s -u -B 225.0.0.1"
+côté(s) client(s) "iperf -c 225.0.0.1 -u -T 1 -b 100M"
+
+Augmenter la taille du buffer de reception reseau
+"sysctl -w net.core.rmem_max=8388608"
+
+Afficher les erreurs de réception réseau: "netstat -su"
+
+Afficher sur la sortie standard ce qui est reçue sur une socket MULTICAST:
+socat UDP4-RECVFROM:44444,ip-add-membership=225.0.2.1:0.0.0.0,fork -
+où 44444 est le port et 225.0.2.1 l'adresse à écouter.
+
+Afficher les adresses dns: cat /etc/resolv.conf
+
+Detecter une adresse IP dupliquee:
+"arping -D -I eth0 -c 10 192.168.0.99" puis "echo $?",
+si ce dernier affiche 0, l'adresse IP testee est dupliquée.
+
+Lancer firefox au travers d'une connexion ssh:
+firefox --no-remote
+
+Lancer thunderbird dans une session ssh:
+thunderbird -no-remote
+
+Récupérer la géolocalisation d'une adresse internet:
+host -t LOC ADRESSE_WEB
+ou bien
+traceroute ADRESSE_WEB pour récupérer l'adresse IP puis
+whois ADRESSE_IP
+
+Rechercher dans google:
++":8080" +":3128" +":1080" filetype:txt OR filetype:html
+donne une liste de proxy
+
+Pomper un site internet:
+wget -r -l LEVEL -k URL
+
+Recuperrer tous les pdf d'un site:
+wget -r -A.pdf URL
+
+recuperrer son adresse IP externe:
+curl -s http://ifconfig.me/ip
+curl -s http://curlmyip.com/
+curl -s checkip.dyndns.org
+
+recuperrer son adresse IP par DNS (bien plus rapide et stable):
+dig +short myip.opendns.com @resolver1.opendns.com
+
+Zapper une adresse IP qui essaye d'acceder a la machine:
+route add -host 211.154.224.237 reject
+il faudrait que j'aprenne a me servir de fail2ban
+
+Google: 8.8.8.8, 8.8.4.4
+OpenDNS: 208.27.220.220, 208.27.222.222
+OpenNIC: 216.87.84.211, 23.90.4.6
+Comodo: 8.26.56.26, 8.20.247.20
+DNSWatch: 84.200.69.80, 84.200.70.40
+DNS Advantage: 156.154.70.1, 156.154.71.1 
+Norton: 199.85.126.10, 199.85.127.10
+FDN: 80.67.169.12 (ns0.fdn.org) 80.67.169.40 (ns1.fdn.org)
+LDN: 80.67.188.188 (ns0.ldn-fai.net)
+ARN: 89.234.141.66 (recursif.arn-fai.net)
+
+Pour que le serveur ssh ne fasse pas de requete DNS lors d'une tentative de
+connection (et attendre des plombes si il n'y a pas de DNS accessible):
+lancer le serveur sshd avec l'option "-u0" (/etc/default/ssh ou
+/etc/sysconfig/sshd)
+Et mettre "UseDNS" a "no" dans /etc/ssh/sshd_config
+
+Si la connexion ssh est longue à s'établir à cause de GSS, ajouter dans le 
+fichier "~/.ssh/config" la ligne:
+GSSAPIAuthentication no
+
+Pour que 'sudo' puisse être appellé directement depuis ssh
+(message "sudo: sorry, you must have a tty to run sudo")
+Commenter la ligne "Default requiretty" de /etc/sudoers
+ssh -t hostname sudo <cmd>
+
+Authentification automatique par clef, c'est le client qui crée une paire
+de clefs privée/publique, puis il distribue la clef publique aux serveurs
+auxquels il veut se connecter sans mot de passe.
+Créer une paire de clefs publique / privée (mieux vaut crypter la clef avec un
+mot de passe lorsque c'est demandé):
+ssh-keygen -t rsa
+Envoyer la clef publique au serveur:
+ssh-copy-id -i ~/.ssh/id_rsa.pub "-p server_port server_user@server_ip_addr"
+Si la clef privée est cryptée, il faut alors utiliser l'agent SSH, qui retiendra
+le clef décryptée le temps de la session, sur le client:
+ssh-add
+
+Pour le WIFI en environnement bruité (ou réseau congestioné), il peut être
+opportun de diminuer la limite de réémission (7 par défaut):
+iwconfig wlan0 retry limit 0
+
+Algorithme de congestion TCP: F-RTO et hybla peuvent être utile également
+pour le WIFI:
+net.ipv4.tcp_frto = 1
+net.ipv4.tcp_frto_response = 2 à la place de 0
+
+Privilégier les basses latences plutôt que le débit:
+net.ipv4.tcp_low_latency = 1
+
+Dégrader les performances réseau:
+tc
+
+autoriser le "wake-on-lan" sur une interface réseau:
+ethtool -s ethX wol g
+
+Partager un dossier par HTTP: se placer dans le répertoire à partager puis
+python -m SimpleHTTPServer PORT
+ou avec Python 3
+python -m http.server 5555
+
+Orange mobile :
+193.253.
+80.10.
+80.12.
+90.84.
+SFR mobile :
+195.115.
+80.125.
+92.90.
+Bouygues Telecom mobile :
+62.201.
+80.214.
+80.215.
+Numericable mobile :
+195.132.254.
+195.132.255.
+Free mobile :
+37.8
+37.160.
+37.161.
+Free (hébergement Online) :
+88.190.
+88.191.
+
+telnet towel.blinkenlights.nl
+
+ajouter la route multicast
+route add -net 224.0.0.0 netmask 240.0.0.0 eth0
+ATTENTION, si il y a 2 interfaces reseau avec la route de MULTICAST
+il faut au moins une passerelle par défaut définit pour une interface
+(et sur FEDORA 11 l'ajout des routes n'est pas nécessaire)
+
+"netstat -ng" ou "ip mcast" pour afficher le(s) groupe(s) multicast souscris
+par l'hôte.
+
+ping 224.0.0.1
+pour avoir tous les hôtes supportant le multicast sur le réseau (?)
+
+ping 235.0.0.1
+pour avoir tous les hôtes ayant souscris au groupe 235.0.0.1
+
+pour souscrire au groupe multicast 239.0.0.10
+smcroute -j ethX 239.0.0.10
+pour quiter le groupe multicast 239.0.0.10
+smcroute -l ethX 239.0.0.10
+(voir aussi mrouted pour router du traffic multicast)
+
+groupes multicast statique de 239.0.0.1 à 239.255.255.254
+
+/proc/net/ip_mr_cache et /proc/net/ip_mr_vif contiennent respectivement les
+routes multicast actives et les interfaces 'virtuelles' utilisées
+/proc/net/igmp pour afficher le nb de requêtes IGMP envoyées
+/proc/sys/net/ipv4/igmp_max_memberships pour le nb maximum d'abonnements
+/proc/sys/net/ipv4/conf/eth0/force_igmp_version pour la version IGMP (1 ou 2)
+
+*******************************************************************************
+
+*******************************************************************************
+*** Developpement *************************************************************
+*******************************************************************************
+
+Afficher une boîte de dialogue depuis la console:
+kdialog --msgbox $TEXT
+
+Ajouter une dépendance externe à un projet svn:
+Le répertoire NOM_REP où sera copier la dépendance doit être versionné
+puis: "svn propset svn:externals "NOM_DEP CHEMIN_SVN" NOM_REP"
+permet de synchroniser CHEMIN_SVN dans NOM_REP/NOM_DEP, NOM_DEP sera créé et
+rempli avec le contenu de CHEMIN_SVN, NOM_REP est '.' si non précisé. 
+
+Lancer un programme avec un chemin de recherche des bibliotheques different:
+/lib/ld-linux.so* CHEMIN PROGRAMME
+
+pour avoir les options optimales pour GCC:
+procbench -f
+
+Sauvegarder une base de donnees SUBVERSION:
+fast-backup.py (version 1.6?) ou hot-backup.py
+
+pour charger une bibliothèque explicitement (moyen pour faire du plugin)
+dlopen
+
+déclarer un symbole faible: __attribute__((weak))
+permet de définir un symbole qui est à 0 par défaut, et qui peut-être écraser
+par une autre définition.
+
+pour evaluer une expression arithmetique en bash
+par exemple:
+t0=`date +%s` && sleep 5 && t1=`date +%s` && dt=$[$t1 - $t0] && echo t1 - t0 = $dt
+
+pour evaluer une expression arithmetique en flottant
+echo 3/4|bc -l
+
+Creer un patch "diff -Naur --exclude=.svn ANCIEN NOUVEAU"
+
+le pid dans un script shell: $$
+
+Autoriser les "core dump":
+ulimit -c TAILLE_MAX avec eventuellement TAILLE_MAX = unlimited (ulimit -a)
+
+Pour que l'espace ne soit plus un séparateur de champ du BASH (et ainsi
+parcourir un fichier ligne par ligne avec un simple cat):
+IFS=$'\n'
+
+Créer une minuterie: timer_create
+
+Appliquer un vérou sur un fichier: "int flock(int fd, int operation);"
+
+Des compteurs périodiques, par ordre de préférence:
+timerfd: timerfd_create, timerfd_settime...
+Compteurs POSIX itimerspec, timer_t, sigevent, sigwait...
+
+Notification d'evenement d'entree/sortie : epoll à la place de poll 
+et/ou select? POSIX AIO (posix asynchronous IO). Jeter un oeil a "libevent"
+pour evaluer les differentes methodes. ref http://www.kegel.com/c10k.html
+
+transfert d'un escripteur de fichier à un autre:
+    -sendfile d'un descripteur supportant mmap (donc pas de socket) vers
+     une socket
+    -splice appel systeme de base utilise dans l'implementation de sendfile
+
+Pour inhiber la mise en cache d'un fichier, ajouter l'option O_DIRECT à son
+ouverture.
+
+Compilation croisée d'un projet Qt pour windows
+Une fois que tous les paquets (mingw32-XXXX) sont installés:
+qmake-qt4 -spec win32-g++-cross
+pour exemple QExtSerialPort
+
+manipulation des dates avec OCTAVE:
+datenum, datevec, datestr
+
+option de compilations pour gcc:
+CFLAGS+= -fstrict-aliasing -Wstrict-aliasing=2
+CFLAGS+= -Wall -W -Wbad-function-cast -Wcast-align -Wcast-qual 
+CFLAGS+= -Winline -Wnested-externs
+CFLAGS+= -Wpointer-arith
+CFLAGS+= -Wredundant-decls
+CFLAGS+= -Wshadow -Wstrict-prototypes -Wmissing-prototypes 
+CFLAGS+= -Wwrite-strings -Wchar-subscripts 
+CFLAGS+= -stc=c99
+
+option de compilations pour gcc (profiling et debugging):
+CFLAGS+= -fno-omit-frame-pointer -pg # pour gprof (et autres?)
+CFLAGS+= -fmudflapth -lmudflapth # surveillance pointeurs
+CFLAGS+= -finstrument-functions # pour créer ses __cyg_profile_func_XXX 
+CFLAGS+= -fprofile-arcs -ftest-coverage # pour gcov
+
+option de compilations pour gcc (optimisation):
+CFLAGS+= -O3 -fomit-frame-pointer -funroll-all-loops -march=native
+
+Lister les bibliothèques à leur chargement:
+export LD_DEBUG=files
+
+Pour avoir l'utilisation mémoire d'un processus, lire "/proc/self/statm"
+
+Afficher les macros prédéfinies pas GCC
+gcc -dM -E - < /dev/null
+
+augmenter la précision de erf(x) =  exp(-x*x/2):
+xsq = floor (x * 1.6) / 1.6; 
+del = (x - xsq) * (x + xsq);
+erf = exp(-xsq * xsq * 0.5) * exp(-del * 0.5);
+
+int* const x; // Can change *x, but not x
+const int* x; // int const* x
+
+Valeures binaires litérales
+#define Ob(x)  ((unsigned)Ob_(0 ## x ## uL))
+#define Ob_(x) (x & 1 | x >> 2 & 2 | x >> 4 & 4 | x >> 6 & 8 |        \
+    x >> 8 & 16 | x >> 10 & 32 | x >> 12 & 64 | x >> 14 & 128)
+#define SYSCTLA_DSK   Ob(10000000)  /* lights the fixed dsk activity led */
+#define SYSCTLA_DSK0  Ob(01000000)  /* also lights fixed disk actvty led */
+#define SYSCTLA_TMOT  Ob(00010000)  /* watchdog timer has timed-out      */
+#define SYSCTLA_LOCK  Ob(00001000)  /* CMOS password area is locked      */
+#define SYSCTLA_A20   Ob(00000010)  /* alternate address line 20 gating  */
+#define SYSCTLA_RST   Ob(00000001)  /* alternate hot reset               */
+
+macros pour la taille d'un tableau en C (pour GCC):
+#define __same_type(a, b) __builtin_types_compatible_p(typeof(a), typeof(b))
+#define __must_be_array(a) BUILD_BUG_ON_ZERO(__same_type((a), &(a)[0]))
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]) + __must_be_array(arr))
+
+*******************************************************************************
+
+*******************************************************************************
+*** Audio - vidéo *************************************************************
+*******************************************************************************
+
+Enregistrer avec vlc:
+vlc rtsp://mafreebox.freebox.fr/freeboxtv/stream?id=$CANAL --sout file/ts:$FILE
+
+Pour concatener plusieurs vidéo
+mpgtx -j c1.mpg c2.mpg c3.mpg -o cx.mpg
+mpgjoin s01.mpg s02.mpg -o all.mpg
+
+Pour convertir un ts en mpeg (juste un embalage, pas d'encodage)
+mencoder -of mpeg -ovc copy -oac copy -o news.mpg news.ts
+
+Pour convertir en avi:
+mencoder -ovc lavc -oac copy -o test.avi test.ts
+
+Pour couper le début et la fin d'une vidéo
+mpgjoin all.mpg [2:22-54:46] -o just.mpg
+
+Extraire l'audio:
+ffmpeg -i my_video_file.avi extracted_audio.mp3
+mplayer -dumpaudio my_video_file.avi -dumpfile extracted_audio.mp3
+
+Lancer jack avec le driver dummy (utile pour etudier des signaux avec une
+fréquence d'echantillonage > 192kHz):
+jackd -r -v -d dummy -r SAMPLERATE
+
+Pour separer un CD encodé en APE en plusieurs WAV
+(bchunk ne supporte que le WAV):
+ffmpeg -i FICHIER.ape FICHIER.wav && bchunk -w FICHIER.wav FICHIER.cue FICHIER
+
+lire une video en ASCII
+mplayer -vo caca (en couleur) ou mplayer -vo aa (en noir et blanc)
+xterm -fn "-misc-nil-medium-r-normal--2-20-75-75-c-10-misc-fontspecific" \
+      -geometry 450x150 \
+      -e "mplayer -vo aa:driver=curses video.avi"
+xterm -fn 5x7 -geometry 250x80 \
+      -e "CACA_DRIVER=ncurses mplayer -vo caca video.avi"
+
+prendre une photo grace a la webcam depuis la ligne de commande:
+mplayer -vo png -frames 1 tv://
+vlc -I dummy v4l2:///dev/video0 --video-filter scene --no-audio --scene-path /home/stoppal/test --scene-prefix image_prefix --scene-format png vlc://quit --run-time=1
+
+RTL2832U/RTL2838
+il faut décharger le module dvb_usb_rtl28xxu pour pouvoir utiliser rtl_xyz ou
+gqrx.
+"rtl_eeprom -i 0" pour inhiber la télécommande infrarouge
+"rtl_test -t" pour tester le tuner E4000
+"rtl_test -s 2048000" pour tester la freq d'echantillonnage de 2048kHz
+Tuner E4000 de 53MHz à 1.103GHz et 1.272GHz à 2.205GHz
+
+*******************************************************************************
+
+*******************************************************************************
+*** Divers ********************************************************************
+*******************************************************************************
+
+Faire un DVD d'installation personalise de FEDORA: revisor
+
+Faire une clef USB bootable: unetbootin
+
+exclure un motif avec grep:
+grep -v [MOTIF A EXCLURE]
+
+Convertir une date UNIX en date humaine:
+date -d @NB_SEC
+
+Afficher la date actuelle en date UNIX:
+date +%s
+
+Nettoyer la BDD de firefox:
+cd ~/.mozilla/firefox/_your_profile_.default
+for i in *.sqlite; do echo "VACUUM;" | sqlite3 $i; done
+
+killall plugin-container
+
+extraire les fichiers d'un paquetage rpm:
+rpm2cpio PACKET.RPM | cpio -idmv
+
+convertir minuscules vers majuscules:
+tr '[:lower:]' '[:upper:]'
+
+changer les couleurs utilisées par ls:
+copier /etc/DIR_COLORS dans ~/.dir_colors puis éditer
+
+Créer des colonnes:
+column
+
+Mettre les lignes de fichiers à la queleuleu
+paste
+
+Reformatter un tableau:
+rs
+
+manipuler des fichiers en hexadécimal
+xxd
+
+Séparer un fichier:
+split
+
+Lister les applications utilisant internet
+ss
+
+Détecter les noms de fichier possédant des charactères non-ASCII
+LC_ALL=C find . -name '*[! -~]*'
+
+Tester la batterie:
+upower -i /org/freedesktop/UPower/devices/battery_BAT0
+acpi -ib
+
+Changer la disposition du clavier:
+en "vrai" mode console (CTRL+ALT+Fn): "loadkeys fr"
+en émulateur de console (type xterm): "setxkbmap fr"
+
+regex pour les caractères non ASCII
+[^\x00-\x7F]
+
+*******************************************************************************
+
+*******************************************************************************
+*** Systèmes d'exploitations - Live CD **************************************** 
+*******************************************************************************
+
+CAO mécanique:
+http://www.caelinux.com
+
+Live CD pour connexion sécurisé: Lightweight Portable Security (LPS)
+http://www.spi.dod.mil/lipose.htm
+
+Test de pénétration:
+https://www.kali.org/
+
+Sécurité paranoïaque
+http://tinfoilhat.shmoo.com/
+
+Anonyme:
+https://tails.boum.org/
+http://opensource.dyc.edu/tor-ramdisk
+
+Sécurité forte (séparation des applications)
+http://qubes-os.org/trac
+
+orientée serveur
+http://idms-linux.org/
+
+CentOS administré par une interface WEB
+http://www.nethserver.org/
+
+XINUTOP est un GNU/Linux pour les applications marines:
+http://marinux.tuxfamily.org/
+
+Distributions légères:
+AntiX
+SparkyLinux
+Puppy Linux
+Lubuntu
+Porteus
+CrunchBang
+TinyCore
+Slitaz
+MX14
+HandyLinux
+Slax
+Papyros
+
