@@ -859,6 +859,9 @@ macros pour la taille d'un tableau en C (pour GCC):
 #define __must_be_array(a) BUILD_BUG_ON_ZERO(__same_type((a), &(a)[0]))
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]) + __must_be_array(arr))
 
+Important pour les scripts bash, "set -eu" pour arrêter les scripts à la
+1ère erreur ou pour les variables non definies.
+ 
 *******************************************************************************
 
 *******************************************************************************
